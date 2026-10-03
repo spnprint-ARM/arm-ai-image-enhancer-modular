@@ -5,12 +5,11 @@ or modify the tested V2 application, installer, or release files.
 
 ## Product direction
 
-The modular installer currently installs only the application shell and module
-status UI. Image processing, accelerator runtimes, and AI models are not included
-yet; they are intended as separate, optional downloads. The first backend candidate for Windows is
+The modular installer installs the application shell. The Vulkan engine is an
+optional post-install download. The first backend candidate for Windows is
 Real-ESRGAN NCNN/Vulkan because its upstream project publishes portable binaries
 for Intel, AMD, and NVIDIA GPUs. It still requires a compatible Vulkan-capable
-GPU and driver; the product must offer a CPU fallback when Vulkan is unavailable.
+GPU and driver. CPU fallback is not included in the current prototype.
 
 Face recovery remains an optional add-on because it needs additional models and
 dependencies. Do not advertise it as available until the add-on and its device
@@ -18,8 +17,8 @@ compatibility have been validated.
 
 ## Current contents
 
-- `core/ModularApp.cs`: small native Windows GUI shell with asynchronous hardware
-  inventory and optional-module status. It does not load Python or AI packages.
+- `core/ModularApp.cs`: native Windows GUI with asynchronous hardware inventory,
+  verified optional-module download, batch image enhancement, and scale selection.
 - `prototype/device_probe.py`: read-only hardware and backend suitability
   inventory. It does not install software, contact the network, or modify V2.
 - `installer/ModularSetup.cs`: separate Windows installer/uninstaller. It checks
@@ -45,7 +44,7 @@ compiler available:
 & .\outputs\modular\installer\build_windows.ps1
 ```
 
-The versioned installer output is `outputs\modular\release\setup-modular-0.2.0.3.exe`;
+The versioned installer output is `outputs\modular\release\setup-modular-0.2.0.6.exe`;
 build and staging files stay under `outputs\modular\installer\build`.
 
 ## Publishing a setup from GitHub
@@ -87,13 +86,15 @@ Windows package from the upstream portable binary and includes its license.
 
 The Vulkan package is optional and does not imply that a detected display adapter
 can run inference. A compatible Vulkan driver/device must be present; CPU
-inference is not part of this package. The application shell still does not have
-the image-processing UI or invoke the engine, so installing the engine alone
-does not enable image enhancement yet.
+inference is not part of this package. The enhancement screen accepts multiple
+JPEG, PNG, or WebP images in one batch, offers 2x/3x/4x, uses the general x4plus
+model, and saves separate PNGs beside each source without overwriting existing
+files. Preview/compare tools, custom output sizing, and face recovery are not implemented yet. The engine does not report a
+percentage, so the app shows activity rather than a numeric progress estimate.
 
 ## Not release-ready
 
-Face-recovery packages, CPU fallback, resume/cancel, and upscaling inference
-integration are not implemented yet. The installer package's embedded SHA-256
+Face-recovery packages, CPU fallback, resume/cancel, and device validation on
+representative Intel, AMD, and NVIDIA systems are not completed yet. The setup's embedded SHA-256
 detects payload corruption, but is not a digital signature. The prototype
 intentionally fails closed instead of downloading unchecked third-party binaries.

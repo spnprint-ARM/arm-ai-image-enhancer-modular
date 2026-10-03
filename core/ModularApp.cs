@@ -7,6 +7,7 @@ using System.IO;
 using System.Management;
 using System.Net;
 using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
@@ -56,6 +57,12 @@ internal static class ModularApp
         private readonly Button upscaleAction;
         private readonly ProgressBar upscaleProgress;
         private readonly Label upscalePercent;
+        private readonly ListBox inputFiles;
+        private readonly List<string> selectedImages = new List<string>();
+        private readonly ComboBox scaleChoice;
+        private readonly Button enhanceButton;
+        private readonly ProgressBar enhanceProgress;
+        private readonly Label enhanceStatus;
         private readonly string moduleRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ArmAI", "ImageEnhancer-Modular", "modules");
         private const string PackageAssetName = "module-upscale-ncnn-vulkan-windows-x64.zip";
         private const string PackageId = "upscale-ncnn-vulkan-windows-x64";
@@ -65,8 +72,8 @@ internal static class ModularApp
             Text = "ARM AI Image Enhancer — Modular";
             Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
             StartPosition = FormStartPosition.CenterScreen;
-            MinimumSize = new Size(680, 480);
-            ClientSize = new Size(760, 570);
+            MinimumSize = new Size(700, 650);
+            ClientSize = new Size(760, 700);
             Font = new Font("Tahoma", 9F);
 
             Label title = new Label { Left = 22, Top = 18, Width = 710, Height = 34,
@@ -82,8 +89,8 @@ internal static class ModularApp
             refresh.Click += delegate { StartDeviceScan(); };
             deviceBox.Controls.Add(adapterInfo); deviceBox.Controls.Add(refresh); Controls.Add(deviceBox);
 
-            GroupBox componentBox = new GroupBox { Left = 18, Top = 214, Width = 724, Height = 274, Text = "Optional components" };
-            packages = new FlowLayoutPanel { Left = 12, Top = 23, Width = 696, Height = 236,
+            GroupBox componentBox = new GroupBox { Left = 18, Top = 214, Width = 724, Height = 180, Text = "Optional components" };
+            packages = new FlowLayoutPanel { Left = 12, Top = 23, Width = 696, Height = 142,
                 FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
             componentBox.Controls.Add(packages); Controls.Add(componentBox);
             Panel upscaleRow = new Panel { Width = 676, Height = 76, Margin = new Padding(3, 2, 3, 2) };
@@ -101,8 +108,24 @@ internal static class ModularApp
             packages.Controls.Add(new Label { Width = 660, Height = 30, Text = "Face recovery and other model packs will appear here after their packages are released." });
             CheckInstalledPackage();
 
-            status = new Label { Left = 22, Top = 503, Width = 710, Height = 40,
-                Text = "CPU is the compatibility baseline. GPU acceleration is enabled only after a runtime check.", AutoEllipsis = true };
+            GroupBox enhanceBox = new GroupBox { Left = 18, Top = 402, Width = 724, Height = 190, Text = "Enhance images" };
+            Button chooseImage = new Button { Left = 14, Top = 25, Width = 124, Height = 30, Text = "Choose images…" };
+            chooseImage.Click += ChooseImageClick;
+            inputFiles = new ListBox { Left = 146, Top = 25, Width = 554, Height = 50, IntegralHeight = false, Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right };
+            enhanceBox.Controls.Add(chooseImage); enhanceBox.Controls.Add(inputFiles);
+            enhanceBox.Controls.Add(new Label { Left = 14, Top = 84, Width = 50, Height = 25, Text = "Scale:" });
+            scaleChoice = new ComboBox { Left = 74, Top = 80, Width = 96, Height = 25, DropDownStyle = ComboBoxStyle.DropDownList };
+            scaleChoice.Items.AddRange(new object[] { "2x", "3x", "4x" }); scaleChoice.SelectedIndex = 2;
+            enhanceBox.Controls.Add(scaleChoice);
+            enhanceButton = new Button { Left = 540, Top = 78, Width = 160, Height = 32, Text = "Enhance images", Anchor = AnchorStyles.Top | AnchorStyles.Right };
+            enhanceButton.Click += EnhanceButtonClick;
+            enhanceBox.Controls.Add(enhanceButton);
+            enhanceProgress = new ProgressBar { Left = 14, Top = 116, Width = 686, Height = 20, Style = ProgressBarStyle.Marquee, MarqueeAnimationSpeed = 28, Visible = false, Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right };
+            enhanceStatus = new Label { Left = 14, Top = 143, Width = 686, Height = 32, Text = "Choose one or more photos. Each result is saved as a new PNG beside its source.", AutoEllipsis = true };
+            enhanceBox.Controls.Add(enhanceProgress); enhanceBox.Controls.Add(enhanceStatus); Controls.Add(enhanceBox);
+
+            status = new Label { Left = 22, Top = 604, Width = 710, Height = 40,
+                Text = "This engine requires a compatible Vulkan GPU and driver. CPU fallback is not included.", AutoEllipsis = true };
             Controls.Add(status);
             StartDeviceScan();
             CheckPackageAsync();
@@ -124,7 +147,7 @@ internal static class ModularApp
             if (IsDisposed) return;
             if (File.Exists(Path.Combine(moduleRoot, PackageId, "realesrgan-ncnn-vulkan.exe")))
             {
-                upscaleStatus.Text = "Installed. Vulkan acceleration depends on a compatible GPU driver; image-processing integration is still in development.";
+                upscaleStatus.Text = "Installed. Single-image enhancement is ready; Vulkan operation depends on a compatible GPU and driver.";
                 upscaleAction.Text = "Installed"; upscaleAction.Enabled = false;
                 return;
             }
@@ -236,7 +259,7 @@ internal static class ModularApp
                     catch { if (Directory.Exists(backup) && !Directory.Exists(target)) Directory.Move(backup, target); throw; }
                     if (Directory.Exists(backup)) Directory.Delete(backup, true);
                     File.Delete(archive);
-                    UpdatePackageState("Installed. This adds the Vulkan engine; image-processing integration is still in development.", "Installed", false);
+                    UpdatePackageState("Installed. Single-image enhancement is ready; Vulkan operation still needs a compatible GPU and driver.", "Installed", false);
                 }
                 catch (Exception ex)
                 {
@@ -262,6 +285,133 @@ internal static class ModularApp
             if (value == null || value.Length != 64) return false;
             foreach (char c in value) if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) return false;
             return true;
+        }
+
+        private void ChooseImageClick(object sender, EventArgs e)
+        {
+            using (OpenFileDialog dialog = new OpenFileDialog())
+            {
+                dialog.Title = "Choose images to enhance";
+                dialog.Filter = "Supported images|*.jpg;*.jpeg;*.png;*.webp|JPEG|*.jpg;*.jpeg|PNG|*.png|WebP|*.webp";
+                dialog.Multiselect = true;
+                if (dialog.ShowDialog(this) == DialogResult.OK)
+                {
+                    selectedImages.Clear(); selectedImages.AddRange(dialog.FileNames);
+                    inputFiles.Items.Clear();
+                    foreach (string path in selectedImages) inputFiles.Items.Add(Path.GetFileName(path));
+                    enhanceStatus.Text = selectedImages.Count + " image(s) selected. Results will be saved as new PNG files beside the originals.";
+                }
+            }
+        }
+
+        private void EnhanceButtonClick(object sender, EventArgs e)
+        {
+            if (selectedImages.Count == 0 || selectedImages.Exists(delegate(string path) { return !File.Exists(path); }))
+            {
+                MessageBox.Show(this, "Choose one or more supported images first.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            string engineDirectory = Path.Combine(moduleRoot, PackageId);
+            string engine = Path.Combine(engineDirectory, "realesrgan-ncnn-vulkan.exe");
+            if (!File.Exists(engine))
+            {
+                MessageBox.Show(this, "Install the Real-ESRGAN NCNN/Vulkan component before enhancing images.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            string scale = scaleChoice.SelectedItem == null ? "4" : scaleChoice.SelectedItem.ToString().TrimEnd('x');
+            StartEnhance(selectedImages.ToArray(), scale, engine, engineDirectory);
+        }
+
+        private void StartEnhance(string[] sources, string scale, string engine, string workingDirectory)
+        {
+            enhanceButton.Enabled = false;
+            enhanceProgress.Visible = true;
+            enhanceStatus.Text = "Preparing " + sources.Length + " image(s)… The engine does not report an exact percentage.";
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                List<string> failures = new List<string>();
+                int completed = 0;
+                for (int i = 0; i < sources.Length; i++)
+                {
+                    string source = sources[i];
+                    string destination = UniqueOutputPath(source, scale);
+                    UpdateEnhanceProgress("Enhancing " + (i + 1) + " of " + sources.Length + ": " + Path.GetFileName(source));
+                    try
+                    {
+                        RunEnhancer(engine, workingDirectory, source, destination, scale);
+                        completed++;
+                    }
+                    catch (Exception ex) { failures.Add(Path.GetFileName(source) + ": " + ex.Message); }
+                }
+                string message = completed + " of " + sources.Length + " image(s) enhanced. PNG files were saved beside the originals.";
+                if (failures.Count > 0) message += " Failed: " + String.Join(" | ", failures.ToArray());
+                FinishEnhance(failures.Count == 0, message);
+            });
+        }
+
+        private void RunEnhancer(string engine, string workingDirectory, string source, string destination, string scale)
+        {
+            StringBuilder errors = new StringBuilder();
+            object errorLock = new object();
+            ProcessStartInfo start = new ProcessStartInfo
+            {
+                FileName = engine,
+                Arguments = "-i " + QuoteArgument(source) + " -o " + QuoteArgument(destination) + " -n realesrgan-x4plus -s " + scale + " -f png -v",
+                WorkingDirectory = workingDirectory,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+            using (Process process = new Process())
+            {
+                process.StartInfo = start;
+                process.ErrorDataReceived += delegate(object sender, DataReceivedEventArgs args) { if (args.Data != null) lock (errorLock) errors.AppendLine(args.Data); };
+                process.OutputDataReceived += delegate(object sender, DataReceivedEventArgs args) { if (args.Data != null && (args.Data.IndexOf("error", StringComparison.OrdinalIgnoreCase) >= 0 || args.Data.IndexOf("failed", StringComparison.OrdinalIgnoreCase) >= 0)) lock (errorLock) errors.AppendLine(args.Data); };
+                if (!process.Start()) throw new InvalidOperationException("The Vulkan engine could not be started.");
+                process.BeginOutputReadLine(); process.BeginErrorReadLine(); process.WaitForExit(); process.WaitForExit();
+                if (process.ExitCode != 0) throw new InvalidOperationException("Engine exit " + process.ExitCode + ". " + LastText(errors.ToString(), 500));
+            }
+            if (!File.Exists(destination) || new FileInfo(destination).Length == 0) throw new InvalidDataException("No output image was created. Check Vulkan support and the graphics driver.");
+        }
+
+        private static string UniqueOutputPath(string source, string scale)
+        {
+            string directory = Path.GetDirectoryName(source);
+            string stem = Path.GetFileNameWithoutExtension(source) + "_enhancedX" + scale;
+            string candidate = Path.Combine(directory, stem + ".png");
+            int suffix = 2;
+            while (File.Exists(candidate)) candidate = Path.Combine(directory, stem + "_" + suffix++ + ".png");
+            return candidate;
+        }
+
+        private void UpdateEnhanceProgress(string message)
+        {
+            if (IsDisposed || !IsHandleCreated) return;
+            try { BeginInvoke((Action)delegate { if (!IsDisposed) enhanceStatus.Text = message; }); }
+            catch (InvalidOperationException) { }
+        }
+
+        private void FinishEnhance(bool success, string message)
+        {
+            if (IsDisposed || !IsHandleCreated) return;
+            try { BeginInvoke((Action)delegate
+            {
+                if (IsDisposed) return;
+                enhanceProgress.Visible = false; enhanceButton.Enabled = true; enhanceStatus.Text = message;
+                status.Text = success ? "Enhancement completed. Original images were not modified." : "Enhancement finished with some errors. Original images were not modified.";
+                if (!success) MessageBox.Show(this, message, Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }); }
+            catch (InvalidOperationException) { }
+        }
+
+        private static string QuoteArgument(string value) { return "\"" + value.Replace("\"", "\\\"") + "\""; }
+
+        private static string LastText(string value, int maximum)
+        {
+            if (String.IsNullOrWhiteSpace(value)) return "";
+            value = value.Trim();
+            return value.Length <= maximum ? value : value.Substring(value.Length - maximum);
         }
 
         private void StartDeviceScan()
