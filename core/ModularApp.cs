@@ -1,12 +1,16 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Management;
+using System.Net;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
+using System.IO.Compression;
 using Microsoft.Win32;
 
 internal static class ModularApp
@@ -14,6 +18,7 @@ internal static class ModularApp
     [STAThread]
     private static int Main(string[] args)
     {
+        ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
         try { ReadCatalog(); }
         catch (Exception ex)
         {
@@ -47,6 +52,13 @@ internal static class ModularApp
         private readonly Label adapterInfo;
         private readonly Label status;
         private readonly FlowLayoutPanel packages;
+        private readonly Label upscaleStatus;
+        private readonly Button upscaleAction;
+        private readonly ProgressBar upscaleProgress;
+        private readonly Label upscalePercent;
+        private readonly string moduleRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ArmAI", "ImageEnhancer-Modular", "modules");
+        private const string PackageAssetName = "module-upscale-ncnn-vulkan-windows-x64.zip";
+        private const string PackageId = "upscale-ncnn-vulkan-windows-x64";
 
         internal MainForm()
         {
@@ -74,44 +86,182 @@ internal static class ModularApp
             packages = new FlowLayoutPanel { Left = 12, Top = 23, Width = 696, Height = 236,
                 FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
             componentBox.Controls.Add(packages); Controls.Add(componentBox);
-            PopulatePackages();
+            Panel upscaleRow = new Panel { Width = 676, Height = 76, Margin = new Padding(3, 2, 3, 2) };
+            upscaleRow.Controls.Add(new Label { Left = 4, Top = 4, Width = 420, Height = 20,
+                Text = "Real-ESRGAN NCNN/Vulkan — Windows x64", Font = new Font("Tahoma", 9F, FontStyle.Bold) });
+            upscaleStatus = new Label { Left = 4, Top = 27, Width = 506, Height = 38,
+                Text = "Checking the latest verified package…", AutoEllipsis = true };
+            upscaleAction = new Button { Left = 526, Top = 7, Width = 138, Height = 28, Text = "Check package" };
+            upscaleAction.Click += PackageActionClick;
+            upscaleProgress = new ProgressBar { Left = 526, Top = 42, Width = 100, Height = 18, Visible = false };
+            upscalePercent = new Label { Left = 630, Top = 42, Width = 34, Height = 18, TextAlign = ContentAlignment.MiddleRight, Visible = false };
+            upscaleRow.Controls.Add(upscaleStatus); upscaleRow.Controls.Add(upscaleAction);
+            upscaleRow.Controls.Add(upscaleProgress); upscaleRow.Controls.Add(upscalePercent);
+            packages.Controls.Add(upscaleRow);
+            packages.Controls.Add(new Label { Width = 660, Height = 30, Text = "Face recovery and other model packs will appear here after their packages are released." });
+            CheckInstalledPackage();
 
             status = new Label { Left = 22, Top = 503, Width = 710, Height = 40,
                 Text = "CPU is the compatibility baseline. GPU acceleration is enabled only after a runtime check.", AutoEllipsis = true };
             Controls.Add(status);
             StartDeviceScan();
+            CheckPackageAsync();
         }
 
-        private void PopulatePackages()
+        private void CheckInstalledPackage()
         {
-            ArrayList items = (ArrayList)ReadCatalog()["packages"];
-            foreach (object value in items)
+            string installed = Path.Combine(moduleRoot, PackageId, "realesrgan-ncnn-vulkan.exe");
+            if (File.Exists(installed))
             {
-                Dictionary<string, object> item = value as Dictionary<string, object>;
-                if (item == null) continue;
-                string id = Convert.ToString(item.ContainsKey("id") ? item["id"] : "unnamed package");
-                if (id == "core") continue;
-                bool ready = IsInstallReady(item);
-                string description = ready ? "Verified package is available to install." : "This optional package has not been published yet.";
-                Panel row = new Panel { Width = 676, Height = 46, Margin = new Padding(3, 2, 3, 2) };
-                row.Controls.Add(new Label { Left = 4, Top = 4, Width = 225, Height = 20,
-                    Text = id, Font = new Font("Tahoma", 9F, FontStyle.Bold) });
-                row.Controls.Add(new Label { Left = 232, Top = 4, Width = 320, Height = 36,
-                    Text = description, AutoEllipsis = true });
-                row.Controls.Add(new Label { Left = 558, Top = 4, Width = 108, Height = 20,
-                    Text = ready ? "Available" : "Not published", TextAlign = ContentAlignment.MiddleRight });
-                packages.Controls.Add(row);
+                upscaleStatus.Text = "Installed. Vulkan acceleration depends on a compatible GPU driver; CPU fallback is not included.";
+                upscaleAction.Text = "Installed";
+                upscaleAction.Enabled = false;
             }
         }
 
-        private static bool IsInstallReady(Dictionary<string, object> item)
+        private void CheckPackageAsync()
         {
-            object url, digest, version, size, license;
-            return item.TryGetValue("download", out url) && url is string && ((string)url).StartsWith("https://", StringComparison.OrdinalIgnoreCase)
-                && item.TryGetValue("sha256", out digest) && digest is string && ((string)digest).Length == 64
-                && item.TryGetValue("version", out version) && version != null
-                && item.TryGetValue("archive_size_bytes", out size) && size is int && (int)size > 0
-                && item.TryGetValue("license", out license) && license != null;
+            if (IsDisposed) return;
+            if (File.Exists(Path.Combine(moduleRoot, PackageId, "realesrgan-ncnn-vulkan.exe")))
+            {
+                upscaleStatus.Text = "Installed. Vulkan acceleration depends on a compatible GPU driver; image-processing integration is still in development.";
+                upscaleAction.Text = "Installed"; upscaleAction.Enabled = false;
+                return;
+            }
+            upscaleAction.Enabled = false;
+            upscaleStatus.Text = "Checking GitHub for the latest package…";
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                try
+                {
+                    HttpWebRequest request = (HttpWebRequest)WebRequest.Create("https://api.github.com/repos/spnprint-ARM/arm-ai-image-enhancer-modular/releases/latest");
+                    request.UserAgent = "ARM-AI-Image-Enhancer-Modular";
+                    request.Accept = "application/vnd.github+json";
+                    using (WebResponse response = request.GetResponse())
+                    using (Stream stream = response.GetResponseStream())
+                    using (StreamReader reader = new StreamReader(stream))
+                    {
+                        Dictionary<string, object> release = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(reader.ReadToEnd());
+                        ArrayList assets = release["assets"] as ArrayList;
+                        Dictionary<string, object> found = null;
+                        if (assets != null)
+                            foreach (object raw in assets)
+                            {
+                                Dictionary<string, object> asset = raw as Dictionary<string, object>;
+                                if (asset != null && String.Equals(Convert.ToString(asset["name"]), PackageAssetName, StringComparison.Ordinal)) { found = asset; break; }
+                            }
+                        if (found == null) { UpdatePackageState("The AI package has not been published yet.", "Check again", true); return; }
+                        string digest = Convert.ToString(found.ContainsKey("digest") ? found["digest"] : "");
+                        string url = Convert.ToString(found.ContainsKey("browser_download_url") ? found["browser_download_url"] : "");
+                        long size = Convert.ToInt64(found.ContainsKey("size") ? found["size"] : 0);
+                        if (!digest.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase) || digest.Length != 71 || !IsHexDigest(digest.Substring(7)) || size < 1 || !url.StartsWith("https://github.com/spnprint-ARM/arm-ai-image-enhancer-modular/releases/download/", StringComparison.OrdinalIgnoreCase))
+                        { UpdatePackageState("GitHub package metadata is incomplete; download disabled for safety.", "Check again", true); return; }
+                        UpdatePackageState("Package available (" + FormatSize(size) + "). Vulkan-capable GPU required; compatibility is not yet validated.", "Install", true);
+                        packageUrl = url; packageDigest = digest.Substring(7).ToLowerInvariant(); packageSize = size;
+                    }
+                }
+                catch (Exception ex) { UpdatePackageState("Could not check GitHub: " + ex.Message, "Retry", true); }
+            });
+        }
+
+        private string packageUrl;
+        private string packageDigest;
+        private long packageSize;
+
+        private void UpdatePackageState(string message, string action, bool enabled)
+        {
+            if (IsDisposed || !IsHandleCreated) return;
+            try { BeginInvoke((Action)delegate { if (!IsDisposed) { upscaleStatus.Text = message; upscaleAction.Text = action; upscaleAction.Enabled = enabled; } }); }
+            catch (InvalidOperationException) { }
+        }
+
+        private void PackageActionClick(object sender, EventArgs e)
+        {
+            if (String.Equals(upscaleAction.Text, "Install", StringComparison.Ordinal) && !String.IsNullOrEmpty(packageUrl)) InstallPackageAsync();
+            else CheckPackageAsync();
+        }
+
+        private void InstallPackageAsync()
+        {
+            string staging = Path.Combine(moduleRoot, PackageId + ".staging");
+            string archive = Path.Combine(moduleRoot, PackageId + ".download.zip");
+            upscaleAction.Enabled = false; upscaleProgress.Visible = true; upscalePercent.Visible = true;
+            upscaleProgress.Value = 0; upscalePercent.Text = "0%"; upscaleStatus.Text = "Downloading and verifying package…";
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                string backup = Path.Combine(moduleRoot, PackageId + ".previous");
+                string target = Path.Combine(moduleRoot, PackageId);
+                try
+                {
+                    Directory.CreateDirectory(moduleRoot);
+                    if (Directory.Exists(staging)) Directory.Delete(staging, true);
+                    if (File.Exists(archive)) File.Delete(archive);
+                    HttpWebRequest request = (HttpWebRequest)WebRequest.Create(packageUrl);
+                    request.UserAgent = "ARM-AI-Image-Enhancer-Modular";
+                    using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
+                    using (Stream input = response.GetResponseStream())
+                    using (FileStream output = new FileStream(archive, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                    {
+                        byte[] buffer = new byte[65536]; long total = 0; int read;
+                        while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
+                        {
+                            output.Write(buffer, 0, read); total += read;
+                            int percent = (int)Math.Min(100, total * 100 / packageSize);
+                            UpdateProgress(percent);
+                        }
+                        output.Flush();
+                    }
+                    FileInfo info = new FileInfo(archive);
+                    if (info.Length != packageSize) throw new InvalidDataException("Downloaded package size does not match GitHub metadata.");
+                    string actual;
+                    using (FileStream file = File.OpenRead(archive)) using (SHA256 sha = SHA256.Create()) actual = BitConverter.ToString(sha.ComputeHash(file)).Replace("-", "").ToLowerInvariant();
+                    if (!String.Equals(actual, packageDigest, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("SHA-256 check failed. The package was not installed.");
+                    Directory.CreateDirectory(staging);
+                    using (ZipArchive zip = ZipFile.OpenRead(archive))
+                    {
+                        string prefix = Path.GetFullPath(staging) + Path.DirectorySeparatorChar;
+                        foreach (ZipArchiveEntry entry in zip.Entries)
+                        {
+                            string destination = Path.GetFullPath(Path.Combine(staging, entry.FullName.Replace('/', Path.DirectorySeparatorChar)));
+                            if (!destination.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("The package contains an unsafe archive path.");
+                            if (String.IsNullOrEmpty(entry.Name)) { Directory.CreateDirectory(destination); continue; }
+                            Directory.CreateDirectory(Path.GetDirectoryName(destination));
+                            entry.ExtractToFile(destination, true);
+                        }
+                    }
+                    if (!File.Exists(Path.Combine(staging, "realesrgan-ncnn-vulkan.exe"))) throw new InvalidDataException("The package is missing the expected Real-ESRGAN executable.");
+                    if (Directory.Exists(backup)) Directory.Delete(backup, true);
+                    if (Directory.Exists(target)) Directory.Move(target, backup);
+                    try { Directory.Move(staging, target); }
+                    catch { if (Directory.Exists(backup) && !Directory.Exists(target)) Directory.Move(backup, target); throw; }
+                    if (Directory.Exists(backup)) Directory.Delete(backup, true);
+                    File.Delete(archive);
+                    UpdatePackageState("Installed. This adds the Vulkan engine; image-processing integration is still in development.", "Installed", false);
+                }
+                catch (Exception ex)
+                {
+                    try { if (Directory.Exists(staging)) Directory.Delete(staging, true); } catch { }
+                    try { if (File.Exists(archive)) File.Delete(archive); } catch { }
+                    UpdatePackageState("Installation failed; temporary files were cleaned. " + ex.Message, "Retry", true);
+                }
+                finally { UpdateProgress(-1); }
+            });
+        }
+
+        private void UpdateProgress(int value)
+        {
+            if (IsDisposed || !IsHandleCreated) return;
+            try { BeginInvoke((Action)delegate { if (IsDisposed) return; if (value < 0) { upscaleProgress.Visible = false; upscalePercent.Visible = false; } else { upscaleProgress.Value = Math.Max(0, Math.Min(100, value)); upscalePercent.Text = value + "%"; } }); }
+            catch (InvalidOperationException) { }
+        }
+
+        private static string FormatSize(long bytes) { return bytes >= 1073741824 ? (bytes / 1073741824.0).ToString("0.0") + " GB" : (bytes / 1048576.0).ToString("0") + " MB"; }
+
+        private static bool IsHexDigest(string value)
+        {
+            if (value == null || value.Length != 64) return false;
+            foreach (char c in value) if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) return false;
+            return true;
         }
 
         private void StartDeviceScan()

@@ -1,6 +1,6 @@
 param(
     [string]$BuildRoot = (Join-Path $PSScriptRoot "build"),
-    [string]$Output = (Join-Path (Split-Path -Parent $PSScriptRoot) "release\setup-modular-0.2.0.2.exe"),
+    [string]$Output = (Join-Path (Split-Path -Parent $PSScriptRoot) "release\setup-modular-0.2.0.3.exe"),
     [string]$IconPath = (Join-Path (Split-Path -Parent $PSScriptRoot) "assets\ARM.ico")
 )
 $ErrorActionPreference = "Stop"
@@ -39,7 +39,7 @@ foreach ($generated in @($Stage, $AppExe, $Uninstaller, $Stub, $Verifier, $Zip, 
 }
 
 # Compile the core without Python, PyTorch, BasicSR, or dynamic engine imports.
-& $Compiler /nologo /target:winexe /platform:x64 /optimize+ "/win32manifest:$AppManifest" "/win32icon:$IconPath" /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Management.dll /reference:System.Web.Extensions.dll "/out:$AppExe" $AppSource
+& $Compiler /nologo /target:winexe /platform:x64 /optimize+ "/win32manifest:$AppManifest" "/win32icon:$IconPath" /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Management.dll /reference:System.Web.Extensions.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll "/out:$AppExe" $AppSource
 if ($LASTEXITCODE -ne 0) { throw "Modular core application compilation failed." }
 Copy-Item -LiteralPath $Catalog -Destination (Join-Path $BuildRoot "module-catalog.json") -Force
 $appCheck = Start-Process -FilePath $AppExe -ArgumentList "--self-check" -Wait -PassThru

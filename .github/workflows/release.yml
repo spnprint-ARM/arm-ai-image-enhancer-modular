@@ -26,6 +26,28 @@ jobs:
           & .\installer\build_windows.ps1 -Output $installer
           if (!(Test-Path -LiteralPath $installer)) { throw "Setup output was not created: $installer" }
 
+      - name: Prepare official Real-ESRGAN Vulkan package
+        shell: pwsh
+        run: |
+          $work = Join-Path $env:RUNNER_TEMP "arm-module-upscale"
+          $sourceZip = Join-Path $work "upstream.zip"
+          $expanded = Join-Path $work "expanded"
+          $stage = Join-Path $work "package"
+          $moduleZip = Join-Path $PWD "release\module-upscale-ncnn-vulkan-windows-x64.zip"
+          New-Item -ItemType Directory -Force -Path $work, $expanded, $stage | Out-Null
+          Invoke-WebRequest -Uri "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-windows.zip" -OutFile $sourceZip
+          Expand-Archive -LiteralPath $sourceZip -DestinationPath $expanded
+          $engine = Get-ChildItem -LiteralPath $expanded -Filter "realesrgan-ncnn-vulkan.exe" -File -Recurse | Select-Object -First 1
+          if (!$engine) { throw "The official archive did not contain realesrgan-ncnn-vulkan.exe." }
+          $engineDirectory = $engine.Directory.FullName
+          Get-ChildItem -LiteralPath $engineDirectory | Copy-Item -Destination $stage -Recurse -Force
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/xinntao/Real-ESRGAN-ncnn-vulkan/master/LICENSE" -OutFile (Join-Path $stage "THIRD_PARTY_LICENSE.txt")
+          if (!(Get-ChildItem -LiteralPath $stage -Filter "*.param" -File -Recurse | Select-Object -First 1)) { throw "The engine package is missing NCNN model files." }
+          New-Item -ItemType Directory -Force -Path (Split-Path -Parent $moduleZip) | Out-Null
+          if (Test-Path -LiteralPath $moduleZip) { Remove-Item -LiteralPath $moduleZip -Force }
+          Compress-Archive -Path (Join-Path $stage "*") -DestinationPath $moduleZip -CompressionLevel Optimal
+          if (!(Test-Path -LiteralPath $moduleZip) -or (Get-Item -LiteralPath $moduleZip).Length -le 0) { throw "The Vulkan module archive was not created." }
+
       - name: Attach setup to the published release
         shell: pwsh
         env:
@@ -33,4 +55,6 @@ jobs:
         run: |
           $version = $env:GITHUB_REF_NAME -replace '^v', ''
           $installer = Join-Path $PWD "release\setup-modular-$version.exe"
+          $module = Join-Path $PWD "release\module-upscale-ncnn-vulkan-windows-x64.zip"
           gh release upload $env:GITHUB_REF_NAME $installer --clobber
+          gh release upload $env:GITHUB_REF_NAME $module --clobber

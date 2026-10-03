@@ -45,7 +45,7 @@ compiler available:
 & .\outputs\modular\installer\build_windows.ps1
 ```
 
-The versioned installer output is `outputs\modular\release\setup-modular-0.2.0.2.exe`;
+The versioned installer output is `outputs\modular\release\setup-modular-0.2.0.3.exe`;
 build and staging files stay under `outputs\modular\installer\build`.
 
 ## Publishing a setup from GitHub
@@ -76,9 +76,24 @@ The generated JSON is a catalog-entry draft; it does not publish or sign files.
 Use only official or otherwise authorized binaries and include all required
 license notices in the source folder before packaging.
 
+## Package manager progress
+
+The Windows core checks the latest public GitHub Release for the official
+Real-ESRGAN NCNN/Vulkan package. When the asset is present, it offers an install
+button, shows download progress, verifies GitHub's SHA-256 asset digest, checks
+archive paths, extracts to a staging folder, and activates it under the current
+user's LocalAppData with rollback cleanup. The release workflow prepares the
+Windows package from the upstream portable binary and includes its license.
+
+The Vulkan package is optional and does not imply that a detected display adapter
+can run inference. A compatible Vulkan driver/device must be present; CPU
+inference is not part of this package. The application shell still does not have
+the image-processing UI or invoke the engine, so installing the engine alone
+does not enable image enhancement yet.
+
 ## Not release-ready
 
-The online signed package catalog, model/backend downloads, resume/cancel, and
-upscaling inference integration are not implemented yet. The setup's embedded
-SHA-256 detects payload corruption, but is not a digital signature. The prototype
+Face-recovery packages, CPU fallback, resume/cancel, and upscaling inference
+integration are not implemented yet. The installer package's embedded SHA-256
+detects payload corruption, but is not a digital signature. The prototype
 intentionally fails closed instead of downloading unchecked third-party binaries.
