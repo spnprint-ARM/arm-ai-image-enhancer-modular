@@ -44,15 +44,15 @@ compiler available:
 & .\outputs\modular\installer\build_windows.ps1
 ```
 
-The versioned installer output is `outputs\modular\release\setup-modular-0.2.0.6.exe`;
+The versioned installer output is `outputs\modular\release\setup-modular-V1.09.exe`;
 build and staging files stay under `outputs\modular\installer\build`.
 
 ## Publishing a setup from GitHub
 
 The GitHub Actions workflow `.github/workflows/release.yml` builds and attaches a
-versioned setup when a published release has a tag such as `v0.2.0.2`. Create a
+versioned setup when a published release has a tag such as `v1.09`. Create a
 draft release on GitHub, publish it, then the workflow attaches
-`setup-modular-0.2.0.2.exe`. Local setup files and build staging folders are
+`setup-modular-V1.09.exe`. Local setup files and build staging folders are
 ignored by Git; releases are built by the workflow.
 
 ## Creating a downloadable module package
@@ -87,9 +87,12 @@ Windows package from the upstream portable binary and includes its license.
 The Vulkan package is optional and does not imply that a detected display adapter
 can run inference. A compatible Vulkan driver/device must be present; CPU
 inference is not part of this package. The enhancement screen accepts multiple
-JPEG, PNG, or WebP images in one batch, offers 2x/3x/4x, uses the general x4plus
-model, and saves separate PNGs beside each source without overwriting existing
-files. Preview/compare tools, custom output sizing, and face recovery are not implemented yet. The engine does not report a
+JPEG, PNG, or WebP images in one batch, offers stable 4x, uses the general x4plus
+model, and saves separate files beside each source without overwriting existing
+files. The output can keep the source format or be PNG, JPG, or TIFF. TIFF output
+is converted locally after inference. Preview/compare tools, custom output sizing,
+and face recovery are not implemented yet. Scales 2x and 3x are temporarily hidden
+because they produced tiled images in the tested environment. The engine does not report a
 percentage, so the app shows activity rather than a numeric progress estimate.
 
 ## Not release-ready

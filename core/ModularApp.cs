@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Management;
 using System.Net;
@@ -60,6 +61,7 @@ internal static class ModularApp
         private readonly ListBox inputFiles;
         private readonly List<string> selectedImages = new List<string>();
         private readonly ComboBox scaleChoice;
+        private readonly ComboBox outputFormat;
         private readonly Button enhanceButton;
         private readonly ProgressBar enhanceProgress;
         private readonly Label enhanceStatus;
@@ -69,7 +71,7 @@ internal static class ModularApp
 
         internal MainForm()
         {
-            Text = "ARM AI Image Enhancer — Modular";
+            Text = "ARM AI Image Enhancer — Modular V1.09";
             Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
             StartPosition = FormStartPosition.CenterScreen;
             MinimumSize = new Size(700, 650);
@@ -108,23 +110,27 @@ internal static class ModularApp
             packages.Controls.Add(new Label { Width = 660, Height = 30, Text = "Face recovery and other model packs will appear here after their packages are released." });
             CheckInstalledPackage();
 
-            GroupBox enhanceBox = new GroupBox { Left = 18, Top = 402, Width = 724, Height = 190, Text = "Enhance images" };
+            GroupBox enhanceBox = new GroupBox { Left = 18, Top = 402, Width = 724, Height = 220, Text = "Enhance images" };
             Button chooseImage = new Button { Left = 14, Top = 25, Width = 124, Height = 30, Text = "Choose images…" };
             chooseImage.Click += ChooseImageClick;
             inputFiles = new ListBox { Left = 146, Top = 25, Width = 554, Height = 50, IntegralHeight = false, Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right };
             enhanceBox.Controls.Add(chooseImage); enhanceBox.Controls.Add(inputFiles);
             enhanceBox.Controls.Add(new Label { Left = 14, Top = 84, Width = 50, Height = 25, Text = "Scale:" });
             scaleChoice = new ComboBox { Left = 74, Top = 80, Width = 96, Height = 25, DropDownStyle = ComboBoxStyle.DropDownList };
-            scaleChoice.Items.AddRange(new object[] { "2x", "3x", "4x" }); scaleChoice.SelectedIndex = 2;
+            scaleChoice.Items.AddRange(new object[] { "4x" }); scaleChoice.SelectedIndex = 0;
             enhanceBox.Controls.Add(scaleChoice);
-            enhanceButton = new Button { Left = 540, Top = 78, Width = 160, Height = 32, Text = "Enhance images", Anchor = AnchorStyles.Top | AnchorStyles.Right };
+            enhanceBox.Controls.Add(new Label { Left = 196, Top = 118, Width = 72, Height = 24, Text = "Save as:" });
+            outputFormat = new ComboBox { Left = 264, Top = 114, Width = 160, Height = 25, DropDownStyle = ComboBoxStyle.DropDownList };
+            outputFormat.Items.AddRange(new object[] { "Same as original", "PNG", "JPG", "TIFF" }); outputFormat.SelectedIndex = 0;
+            enhanceBox.Controls.Add(outputFormat);
+            enhanceButton = new Button { Left = 540, Top = 110, Width = 160, Height = 32, Text = "Enhance images", Anchor = AnchorStyles.Top | AnchorStyles.Right };
             enhanceButton.Click += EnhanceButtonClick;
             enhanceBox.Controls.Add(enhanceButton);
-            enhanceProgress = new ProgressBar { Left = 14, Top = 116, Width = 686, Height = 20, Style = ProgressBarStyle.Marquee, MarqueeAnimationSpeed = 28, Visible = false, Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right };
-            enhanceStatus = new Label { Left = 14, Top = 143, Width = 686, Height = 32, Text = "Choose one or more photos. Each result is saved as a new PNG beside its source.", AutoEllipsis = true };
+            enhanceProgress = new ProgressBar { Left = 14, Top = 151, Width = 686, Height = 20, Style = ProgressBarStyle.Marquee, MarqueeAnimationSpeed = 28, Visible = false, Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right };
+            enhanceStatus = new Label { Left = 14, Top = 178, Width = 686, Height = 32, Text = "Choose photos and output format. Only stable 4x is available while lower scales are being fixed.", AutoEllipsis = true };
             enhanceBox.Controls.Add(enhanceProgress); enhanceBox.Controls.Add(enhanceStatus); Controls.Add(enhanceBox);
 
-            status = new Label { Left = 22, Top = 604, Width = 710, Height = 40,
+            status = new Label { Left = 22, Top = 634, Width = 710, Height = 40,
                 Text = "This engine requires a compatible Vulkan GPU and driver. CPU fallback is not included.", AutoEllipsis = true };
             Controls.Add(status);
             StartDeviceScan();
@@ -319,10 +325,11 @@ internal static class ModularApp
                 return;
             }
             string scale = scaleChoice.SelectedItem == null ? "4" : scaleChoice.SelectedItem.ToString().TrimEnd('x');
-            StartEnhance(selectedImages.ToArray(), scale, engine, engineDirectory);
+            string format = outputFormat.SelectedItem == null ? "Same as original" : Convert.ToString(outputFormat.SelectedItem);
+            StartEnhance(selectedImages.ToArray(), scale, format, engine, engineDirectory);
         }
 
-        private void StartEnhance(string[] sources, string scale, string engine, string workingDirectory)
+        private void StartEnhance(string[] sources, string scale, string format, string engine, string workingDirectory)
         {
             enhanceButton.Enabled = false;
             enhanceProgress.Visible = true;
@@ -334,29 +341,33 @@ internal static class ModularApp
                 for (int i = 0; i < sources.Length; i++)
                 {
                     string source = sources[i];
-                    string destination = UniqueOutputPath(source, scale);
+                    string extension = OutputExtension(source, format);
+                    string destination = UniqueOutputPath(source, scale, extension);
                     UpdateEnhanceProgress("Enhancing " + (i + 1) + " of " + sources.Length + ": " + Path.GetFileName(source));
                     try
                     {
-                        RunEnhancer(engine, workingDirectory, source, destination, scale);
+                        RunEnhancer(engine, workingDirectory, source, destination, scale, extension);
                         completed++;
                     }
                     catch (Exception ex) { failures.Add(Path.GetFileName(source) + ": " + ex.Message); }
                 }
-                string message = completed + " of " + sources.Length + " image(s) enhanced. PNG files were saved beside the originals.";
+                string message = completed + " of " + sources.Length + " image(s) enhanced. Output files were saved beside the originals.";
                 if (failures.Count > 0) message += " Failed: " + String.Join(" | ", failures.ToArray());
                 FinishEnhance(failures.Count == 0, message);
             });
         }
 
-        private void RunEnhancer(string engine, string workingDirectory, string source, string destination, string scale)
+        private void RunEnhancer(string engine, string workingDirectory, string source, string destination, string scale, string extension)
         {
             StringBuilder errors = new StringBuilder();
             object errorLock = new object();
+            bool convertTiff = String.Equals(extension, ".tif", StringComparison.OrdinalIgnoreCase) || String.Equals(extension, ".tiff", StringComparison.OrdinalIgnoreCase);
+            string engineOutput = convertTiff ? Path.Combine(Path.GetTempPath(), "ArmAI_" + Guid.NewGuid().ToString("N") + ".png") : destination;
+            string engineFormat = convertTiff ? "png" : (String.Equals(extension, ".jpeg", StringComparison.OrdinalIgnoreCase) || String.Equals(extension, ".jpg", StringComparison.OrdinalIgnoreCase) ? "jpg" : extension.TrimStart('.').ToLowerInvariant());
             ProcessStartInfo start = new ProcessStartInfo
             {
                 FileName = engine,
-                Arguments = "-i " + QuoteArgument(source) + " -o " + QuoteArgument(destination) + " -n realesrgan-x4plus -s " + scale + " -f png -v",
+                Arguments = "-i " + QuoteArgument(source) + " -o " + QuoteArgument(engineOutput) + " -n realesrgan-x4plus -s " + scale + " -f " + engineFormat + " -v",
                 WorkingDirectory = workingDirectory,
                 UseShellExecute = false,
                 CreateNoWindow = true,
@@ -368,20 +379,51 @@ internal static class ModularApp
                 process.StartInfo = start;
                 process.ErrorDataReceived += delegate(object sender, DataReceivedEventArgs args) { if (args.Data != null) lock (errorLock) errors.AppendLine(args.Data); };
                 process.OutputDataReceived += delegate(object sender, DataReceivedEventArgs args) { if (args.Data != null && (args.Data.IndexOf("error", StringComparison.OrdinalIgnoreCase) >= 0 || args.Data.IndexOf("failed", StringComparison.OrdinalIgnoreCase) >= 0)) lock (errorLock) errors.AppendLine(args.Data); };
-                if (!process.Start()) throw new InvalidOperationException("The Vulkan engine could not be started.");
-                process.BeginOutputReadLine(); process.BeginErrorReadLine(); process.WaitForExit(); process.WaitForExit();
-                if (process.ExitCode != 0) throw new InvalidOperationException("Engine exit " + process.ExitCode + ". " + LastText(errors.ToString(), 500));
+                try
+                {
+                    if (!process.Start()) throw new InvalidOperationException("The Vulkan engine could not be started.");
+                    process.BeginOutputReadLine(); process.BeginErrorReadLine(); process.WaitForExit(); process.WaitForExit();
+                    if (process.ExitCode != 0) throw new InvalidOperationException("Engine exit " + process.ExitCode + ". " + LastText(errors.ToString(), 500));
+                }
+                catch { try { if (File.Exists(engineOutput)) File.Delete(engineOutput); } catch { } throw; }
             }
-            if (!File.Exists(destination) || new FileInfo(destination).Length == 0) throw new InvalidDataException("No output image was created. Check Vulkan support and the graphics driver.");
+            if (!File.Exists(engineOutput) || new FileInfo(engineOutput).Length == 0) throw new InvalidDataException("No output image was created. Check Vulkan support and the graphics driver.");
+            if (convertTiff)
+            {
+                try { SaveAsTiff(engineOutput, destination); }
+                finally { try { if (File.Exists(engineOutput)) File.Delete(engineOutput); } catch { } }
+            }
         }
 
-        private static string UniqueOutputPath(string source, string scale)
+        private string OutputExtension(string source, string format)
+        {
+            if (String.Equals(format, "Same as original", StringComparison.Ordinal)) return Path.GetExtension(source);
+            if (String.Equals(format, "JPG", StringComparison.Ordinal)) return ".jpg";
+            if (String.Equals(format, "TIFF", StringComparison.Ordinal)) return ".tiff";
+            return ".png";
+        }
+
+        private static void SaveAsTiff(string source, string destination)
+        {
+            ImageCodecInfo codec = null;
+            foreach (ImageCodecInfo candidate in ImageCodecInfo.GetImageEncoders())
+                if (String.Equals(candidate.MimeType, "image/tiff", StringComparison.OrdinalIgnoreCase)) { codec = candidate; break; }
+            if (codec == null) throw new InvalidOperationException("Windows does not provide a TIFF encoder.");
+            using (Image image = Image.FromFile(source))
+            using (EncoderParameters parameters = new EncoderParameters(1))
+            {
+                parameters.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Compression, (long)EncoderValue.CompressionLZW);
+                image.Save(destination, codec, parameters);
+            }
+        }
+
+        private static string UniqueOutputPath(string source, string scale, string extension)
         {
             string directory = Path.GetDirectoryName(source);
             string stem = Path.GetFileNameWithoutExtension(source) + "_enhancedX" + scale;
-            string candidate = Path.Combine(directory, stem + ".png");
+            string candidate = Path.Combine(directory, stem + extension);
             int suffix = 2;
-            while (File.Exists(candidate)) candidate = Path.Combine(directory, stem + "_" + suffix++ + ".png");
+            while (File.Exists(candidate)) candidate = Path.Combine(directory, stem + "_" + suffix++ + extension);
             return candidate;
         }
 

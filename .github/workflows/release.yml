@@ -17,10 +17,11 @@ jobs:
       - name: Build versioned setup
         shell: pwsh
         run: |
-          $version = $env:GITHUB_REF_NAME -replace '^v', ''
-          if ($version -notmatch '^\d+\.\d+\.\d+\.\d+$') {
-            throw "Tag must use v<version>.<major>.<minor>.<patch>, for example v0.2.0.2."
+          $tag = [regex]::Match($env:GITHUB_REF_NAME, '^v(?<major>\d+)\.(?<minor>\d{2,})$')
+          if (!$tag.Success) {
+            throw "Tag must use v<major>.<minor>, for example v1.09 or v1.10."
           }
+          $version = "V{0}.{1}" -f $tag.Groups['major'].Value, $tag.Groups['minor'].Value
           $installer = Join-Path $PWD "release\setup-modular-$version.exe"
           New-Item -ItemType Directory -Force -Path (Split-Path -Parent $installer) | Out-Null
           & .\installer\build_windows.ps1 -Output $installer
@@ -53,7 +54,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          $tag = [regex]::Match($env:GITHUB_REF_NAME, '^v(?<major>\d+)\.(?<minor>\d{2,})$')
+          if (!$tag.Success) { throw "Tag must use v<major>.<minor>, for example v1.09 or v1.10." }
+          $version = "V{0}.{1}" -f $tag.Groups['major'].Value, $tag.Groups['minor'].Value
           $installer = Join-Path $PWD "release\setup-modular-$version.exe"
           $module = Join-Path $PWD "release\module-upscale-ncnn-vulkan-windows-x64.zip"
           gh release upload $env:GITHUB_REF_NAME $installer --clobber
