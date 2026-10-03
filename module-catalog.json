@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "channel": "prototype",
+  "packages": [
+    {
+      "id": "core",
+      "version": "0.1.0-prototype",
+      "required": true,
+      "state": "bundled-in-core-installer",
+      "download": null,
+      "sha256": null
+    },
+    {
+      "id": "upscale-ncnn-vulkan-windows-x64",
+      "version": null,
+      "required": false,
+      "state": "not-configured",
+      "download": null,
+      "sha256": null
+    },
+    {
+      "id": "upscale-models-general",
+      "version": null,
+      "required": false,
+      "state": "not-configured",
+      "download": null,
+      "sha256": null
+    },
+    {
+      "id": "face-recovery",
+      "version": null,
+      "required": false,
+      "state": "not-configured",
+      "download": null,
+      "sha256": null
+    }
+  ]
+}

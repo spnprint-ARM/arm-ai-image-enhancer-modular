@@ -1,0 +1,36 @@
+name: Build and publish Modular setup
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Build versioned setup
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          if ($version -notmatch '^\d+\.\d+\.\d+\.\d+$') {
+            throw "Tag must use v<version>.<major>.<minor>.<patch>, for example v0.2.0.2."
+          }
+          $installer = Join-Path $PWD "release\setup-modular-$version.exe"
+          New-Item -ItemType Directory -Force -Path (Split-Path -Parent $installer) | Out-Null
+          & .\installer\build_windows.ps1 -Output $installer
+          if (!(Test-Path -LiteralPath $installer)) { throw "Setup output was not created: $installer" }
+
+      - name: Attach setup to the published release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          $installer = Join-Path $PWD "release\setup-modular-$version.exe"
+          gh release upload $env:GITHUB_REF_NAME $installer --clobber

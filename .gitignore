@@ -1,0 +1,12 @@
+# Local build and installer staging data
+/installer/build/
+/release/*.exe
+/release/*.zip
+/release/*.previous
+/release/modules/
+
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
