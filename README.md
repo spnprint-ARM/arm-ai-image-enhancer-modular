@@ -50,10 +50,10 @@ build and staging files stay under `outputs\modular\installer\build`.
 ## Publishing a setup from GitHub
 
 The GitHub Actions workflow `.github/workflows/release.yml` builds and attaches a
-versioned setup when a published release has a tag such as `v1.09`. Create a
-draft release on GitHub, publish it, then the workflow attaches
-`setup-modular-V1.09.exe`. Local setup files and build staging folders are
-ignored by Git; releases are built by the workflow.
+versioned setup when a published release has a tag such as `V1.09` or `v1.09`.
+The workflow can also be run manually for an existing release by entering its
+tag; this is useful to retry a failed asset build. Local setup files and build
+staging folders are ignored by Git.
 
 ## Creating a downloadable module package
 

@@ -3,6 +3,12 @@ name: Build and publish Modular setup
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing release tag to build and attach assets to
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -16,10 +22,13 @@ jobs:
 
       - name: Build versioned setup
         shell: pwsh
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          $tag = [regex]::Match($env:GITHUB_REF_NAME, '^v(?<major>\d+)\.(?<minor>\d{2,})$')
+          $tagName = if ($env:GITHUB_EVENT_NAME -eq "workflow_dispatch") { $env:RELEASE_TAG } else { $env:GITHUB_REF_NAME }
+          $tag = [regex]::Match($tagName, '^[vV]?(?<major>\d+)\.(?<minor>\d{2,})$')
           if (!$tag.Success) {
-            throw "Tag must use v<major>.<minor>, for example v1.09 or v1.10."
+            throw "Tag must use <major>.<minor>, for example V1.09, v1.09, or v1.10."
           }
           $version = "V{0}.{1}" -f $tag.Groups['major'].Value, $tag.Groups['minor'].Value
           $installer = Join-Path $PWD "release\setup-modular-$version.exe"
@@ -53,11 +62,13 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          $tag = [regex]::Match($env:GITHUB_REF_NAME, '^v(?<major>\d+)\.(?<minor>\d{2,})$')
-          if (!$tag.Success) { throw "Tag must use v<major>.<minor>, for example v1.09 or v1.10." }
+          $tagName = if ($env:GITHUB_EVENT_NAME -eq "workflow_dispatch") { $env:RELEASE_TAG } else { $env:GITHUB_REF_NAME }
+          $tag = [regex]::Match($tagName, '^[vV]?(?<major>\d+)\.(?<minor>\d{2,})$')
+          if (!$tag.Success) { throw "Tag must use <major>.<minor>, for example V1.09, v1.09, or v1.10." }
           $version = "V{0}.{1}" -f $tag.Groups['major'].Value, $tag.Groups['minor'].Value
           $installer = Join-Path $PWD "release\setup-modular-$version.exe"
           $module = Join-Path $PWD "release\module-upscale-ncnn-vulkan-windows-x64.zip"
-          gh release upload $env:GITHUB_REF_NAME $installer --clobber
-          gh release upload $env:GITHUB_REF_NAME $module --clobber
+          gh release upload $tagName $installer --clobber
+          gh release upload $tagName $module --clobber
