@@ -71,7 +71,7 @@ internal static class ModularApp
 
         internal MainForm()
         {
-            Text = "ARM AI Image Enhancer — Modular V1.09";
+            Text = "ARM AI Image Enhancer — Modular V1.10";
             Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
             StartPosition = FormStartPosition.CenterScreen;
             MinimumSize = new Size(700, 650);

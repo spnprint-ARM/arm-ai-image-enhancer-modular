@@ -78,7 +78,7 @@ internal static class ModularSetup
         {
             installWorker = worker;
             createDesktopShortcut = desktopShortcut;
-            Text = "ARM AI Image Enhancer Modular V1.09 — Setup";
+            Text = "ARM AI Image Enhancer Modular V1.10 — Setup";
             Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
@@ -240,7 +240,7 @@ internal static class ModularSetup
             installWorker = worker;
             expanded = expandedBytes;
             qrImage = qr;
-            Text = "ARM AI Image Enhancer Modular V1.09 — Setup";
+            Text = "ARM AI Image Enhancer Modular V1.10 — Setup";
             Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
@@ -248,7 +248,7 @@ internal static class ModularSetup
             StartPosition = FormStartPosition.CenterScreen;
             ClientSize = new Size(800, 500);
             Controls.Add(new Label { Left = 22, Top = 16, Width = 756, Height = 32,
-                Text = "Install ARM AI Image Enhancer — Modular V1.09", Font = new Font("Tahoma", 14, FontStyle.Bold) });
+                Text = "Install ARM AI Image Enhancer — Modular V1.10", Font = new Font("Tahoma", 14, FontStyle.Bold) });
             Controls.Add(new Label { Left = 22, Top = 55, Width = 475, Height = 42,
                 Text = "Install location: " + InstallPath + "\nThe optional Vulkan engine can be downloaded after installation.", Font = new Font("Tahoma", 9) });
             Controls.Add(new Label { Left = 22, Top = 104, Width = 475, Height = 132,
@@ -374,7 +374,7 @@ internal static class ModularSetup
                     using (RegistryKey key = Registry.CurrentUser.CreateSubKey(ProductKey))
                     {
                         key.SetValue("DisplayName", "ARM AI Image Enhancer Modular");
-                        key.SetValue("DisplayVersion", "V1.09");
+                        key.SetValue("DisplayVersion", "V1.10");
                         key.SetValue("InstallLocation", InstallPath);
                         key.SetValue("DisplayIcon", Path.Combine(InstallPath, "_internal", "assets", "ARM.ico"));
                         key.SetValue("UninstallString", "\"" + Path.Combine(InstallPath, "UninstallModular.exe") + "\"");

@@ -44,13 +44,13 @@ compiler available:
 & .\outputs\modular\installer\build_windows.ps1
 ```
 
-The versioned installer output is `outputs\modular\release\setup-modular-V1.09.exe`;
+The versioned installer output is `outputs\modular\release\setup-modular-V1.10.exe`;
 build and staging files stay under `outputs\modular\installer\build`.
 
 ## Publishing a setup from GitHub
 
 The GitHub Actions workflow `.github/workflows/release.yml` builds and attaches a
-versioned setup when a published release has a tag such as `V1.09` or `v1.09`.
+versioned setup when a published release has a tag such as `V1.10` or `v1.10`.
 The workflow can also be run manually for an existing release by entering its
 tag; this is useful to retry a failed asset build. Local setup files and build
 staging folders are ignored by Git.
