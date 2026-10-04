@@ -1,6 +1,6 @@
 param(
     [string]$BuildRoot = (Join-Path $PSScriptRoot "build"),
-    [string]$Output = (Join-Path (Split-Path -Parent $PSScriptRoot) "release\setup-modular-V1.10.exe"),
+    [string]$Output = (Join-Path (Split-Path -Parent $PSScriptRoot) "release\setup-modular-V1.11.exe"),
     [string]$IconPath = (Join-Path (Split-Path -Parent $PSScriptRoot) "assets\ARM.ico")
 )
 $ErrorActionPreference = "Stop"

@@ -23,7 +23,7 @@ compatibility have been validated.
   inventory. It does not install software, contact the network, or modify V2.
 - `installer/ModularSetup.cs`: separate Windows installer/uninstaller. It checks
   the payload SHA-256 and required files, shows activity before reading the
-  archive and validates the QR image, extracts into `%TEMP%`, checks paths and
+  archive and validates the QR image, extracts to a staging folder beside the install location, checks paths and
   files, then activates the application with rollback/cleanup. The installed
   icon is used by shortcuts.
 - `installer/build_windows.ps1`: separate build flow, with a packaged-app
@@ -44,13 +44,13 @@ compiler available:
 & .\outputs\modular\installer\build_windows.ps1
 ```
 
-The versioned installer output is `outputs\modular\release\setup-modular-V1.10.exe`;
+The versioned installer output is `outputs\modular\release\setup-modular-V1.11.exe`;
 build and staging files stay under `outputs\modular\installer\build`.
 
 ## Publishing a setup from GitHub
 
 The GitHub Actions workflow `.github/workflows/release.yml` builds and attaches a
-versioned setup when a published release has a tag such as `V1.10` or `v1.10`.
+versioned setup when a published release has a tag such as `V1.11` or `v1.11`.
 The workflow can also be run manually for an existing release by entering its
 tag; this is useful to retry a failed asset build. Local setup files and build
 staging folders are ignored by Git.

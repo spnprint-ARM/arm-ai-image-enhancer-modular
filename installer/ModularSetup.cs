@@ -78,7 +78,7 @@ internal static class ModularSetup
         {
             installWorker = worker;
             createDesktopShortcut = desktopShortcut;
-            Text = "ARM AI Image Enhancer Modular V1.10 — Setup";
+            Text = "ARM AI Image Enhancer Modular V1.11 — Setup";
             Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
@@ -240,7 +240,7 @@ internal static class ModularSetup
             installWorker = worker;
             expanded = expandedBytes;
             qrImage = qr;
-            Text = "ARM AI Image Enhancer Modular V1.10 — Setup";
+            Text = "ARM AI Image Enhancer Modular V1.11 — Setup";
             Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
@@ -248,7 +248,7 @@ internal static class ModularSetup
             StartPosition = FormStartPosition.CenterScreen;
             ClientSize = new Size(800, 500);
             Controls.Add(new Label { Left = 22, Top = 16, Width = 756, Height = 32,
-                Text = "Install ARM AI Image Enhancer — Modular V1.10", Font = new Font("Tahoma", 14, FontStyle.Bold) });
+                Text = "Install ARM AI Image Enhancer — Modular V1.11", Font = new Font("Tahoma", 14, FontStyle.Bold) });
             Controls.Add(new Label { Left = 22, Top = 55, Width = 475, Height = 42,
                 Text = "Install location: " + InstallPath + "\nThe optional Vulkan engine can be downloaded after installation.", Font = new Font("Tahoma", 9) });
             Controls.Add(new Label { Left = 22, Top = 104, Width = 475, Height = 132,
@@ -344,27 +344,22 @@ internal static class ModularSetup
 
         private void InstallFiles()
         {
-            string tempRoot = Path.Combine(Path.GetTempPath(), "ArmAIImageEnhancerModular");
-            string stage = Path.Combine(tempRoot, "stage_" + Guid.NewGuid().ToString("N"));
+            // Stage beside the destination so activation is a same-directory move.
+            // Moving from per-user Temp into Program Files can fail when Temp has
+            // restrictive or customized ACLs.
+            string installParent = Path.GetDirectoryName(InstallPath);
+            string stage = Path.Combine(installParent, ".ArmAIImageEnhancerModular-stage_" + Guid.NewGuid().ToString("N"));
             string backup = InstallPath + ".previous_" + Guid.NewGuid().ToString("N");
             bool oldMoved = false, newMoved = false, committed = false;
             try
             {
-                Directory.CreateDirectory(tempRoot);
+                Directory.CreateDirectory(installParent);
                 Directory.CreateDirectory(stage);
                 ExtractToStage(stage);
                 ValidateStage(stage);
                 SetProgress("Activating verified core files…", 95);
-                Directory.CreateDirectory(Path.GetDirectoryName(InstallPath));
                 if (Directory.Exists(InstallPath)) { Directory.Move(InstallPath, backup); oldMoved = true; }
-                if (String.Equals(Path.GetPathRoot(stage), Path.GetPathRoot(InstallPath), StringComparison.OrdinalIgnoreCase))
-                    Directory.Move(stage, InstallPath);
-                else
-                {
-                    newMoved = true;
-                    CopyTree(stage, InstallPath, expanded);
-                    DeleteTree(stage);
-                }
+                Directory.Move(stage, InstallPath);
                 newMoved = true;
                 ValidateStage(InstallPath);
                 SetProgress("Creating shortcuts…", 98);
@@ -374,7 +369,7 @@ internal static class ModularSetup
                     using (RegistryKey key = Registry.CurrentUser.CreateSubKey(ProductKey))
                     {
                         key.SetValue("DisplayName", "ARM AI Image Enhancer Modular");
-                        key.SetValue("DisplayVersion", "V1.10");
+                        key.SetValue("DisplayVersion", "V1.11");
                         key.SetValue("InstallLocation", InstallPath);
                         key.SetValue("DisplayIcon", Path.Combine(InstallPath, "_internal", "assets", "ARM.ico"));
                         key.SetValue("UninstallString", "\"" + Path.Combine(InstallPath, "UninstallModular.exe") + "\"");
@@ -491,24 +486,6 @@ internal static class ModularSetup
             type.InvokeMember("Save", BindingFlags.InvokeMethod, null, shortcut, null);
             System.Runtime.InteropServices.Marshal.FinalReleaseComObject(shortcut);
             System.Runtime.InteropServices.Marshal.FinalReleaseComObject(shell);
-        }
-
-        private void CopyTree(string source, string destination, long total)
-        {
-            Directory.CreateDirectory(destination);
-            foreach (string dir in Directory.GetDirectories(source, "*", SearchOption.AllDirectories))
-                Directory.CreateDirectory(Path.Combine(destination, dir.Substring(source.TrimEnd(Path.DirectorySeparatorChar).Length + 1)));
-            long copied = 0;
-            int shown = -1;
-            foreach (string file in Directory.GetFiles(source, "*", SearchOption.AllDirectories))
-            {
-                string output = Path.Combine(destination, file.Substring(source.TrimEnd(Path.DirectorySeparatorChar).Length + 1));
-                Directory.CreateDirectory(Path.GetDirectoryName(output));
-                File.Copy(file, output, false);
-                copied += new FileInfo(file).Length;
-                int percent = total <= 0 ? 99 : 95 + (int)(copied * 4 / total);
-                if (percent != shown) { shown = percent; SetProgress("Copying verified files into the install folder… " + percent + "%", percent); }
-            }
         }
 
         private static void DeleteTree(string path)
